@@ -13,6 +13,7 @@ TOP_H = 104
 
 
 class PuzzleScreen(Screen):
+    toast_top = True
     instructions = ""
     backdrop_scene = "pumpkin_patch"
 

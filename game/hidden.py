@@ -101,6 +101,7 @@ def draw_leaf_drift(surf, x, y, s, seed):
 
 
 class HiddenScene(Screen):
+    toast_top = True
     def __init__(self, app, n):
         super().__init__(app)
         self.n = n

@@ -247,7 +247,8 @@ class App:
         pygame.display.flip()
 
     def _draw_toasts(self, surf):
-        y = 196
+        top_area = getattr(self.top, "toast_top", False)
+        y = 200 if top_area else H - 90
         for text, left, total in self.toasts[-2:]:
             f = self.fonts.fit("small", text, 1300)
             tw = f.size(text)[0] + 80
@@ -259,7 +260,7 @@ class App:
             draw_text(tmp, text, f, COL["ink"], (30 + r.width // 2, 30 + r.height // 2))
             tmp.set_alpha(int(255 * max(0.0, min(1.0, a))))
             surf.blit(tmp, (r.x - 30, r.y - 30))
-            y += r.height + 20
+            y += (r.height + 20) if top_area else -(r.height + 20)
 
     def _update_cursor(self):
         want = pygame.SYSTEM_CURSOR_HAND if (self.top and self.top.hovering()) else pygame.SYSTEM_CURSOR_ARROW

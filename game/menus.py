@@ -260,7 +260,7 @@ class OptionsScreen(Screen):
         self.panel = pygame.Rect(260, 50, 1400, 980)
         cx = self.panel.x + 560
         cw = self.panel.right - 70 - cx
-        ys = {"music": 205, "sfx": 315, "mute": 425, "screen": 535, "diff": 645, "text": 835}
+        ys = {"music": 170, "sfx": 275, "mute": 380, "screen": 485, "diff": 590, "text": 770}
         row = lambda key: (cx, self.panel.y + ys[key] - 46, cw, 92)
         self.music = Slider(a, row("music"), s["music_volume"], self.set_music)
         self.sfx = Slider(a, row("sfx"), s["sfx_volume"], self.set_sfx)
