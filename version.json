@@ -1,0 +1,12 @@
+{
+  "latest_version": "1.0.0",
+  "release_date": "2026-10-25",
+  "changelog": [
+    "First release of Maple Lane Finds!",
+    "Five cozy autumn scenes to search, with ten hidden items each.",
+    "Five puzzles: Pumpkin Pairs, Barn Differences, Pie Picture Slide, Corn Maze Path and Harvest Code.",
+    "Relaxed, Normal and Challenge modes, adjustable text size, music and sound volume."
+  ],
+  "windows_installer_url": "https://github.com/adamglassner/maple-lane-finds/releases/download/v1.0.0/MapleLaneFinds-Setup-1.0.0.exe",
+  "sha256": ""
+}

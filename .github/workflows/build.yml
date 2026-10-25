@@ -1,0 +1,106 @@
+# Builds the Windows game + installer in the cloud on every push to main, tests the real .exe,
+# and keeps a DRAFT GitHub release up to date. When you click "Publish" on that draft, the
+# second job updates version.json so everyone's installed game offers the new version.
+name: Build Windows game
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["version.json", "**.md"]
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    if: github.event_name != 'release'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Inno Setup (if the runner doesn't have it)
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+
+      - name: Build the .exe and the installer
+        shell: cmd
+        env:
+          CI: "true"
+        run: build_windows.bat
+
+      - name: Self-test the built .exe (plays through everything, offline update check)
+        shell: pwsh
+        run: |
+          $env:SDL_VIDEODRIVER = "dummy"
+          $env:SDL_AUDIODRIVER = "dummy"
+          $env:MLF_SELFTEST_OUT = "$PWD\dist\selftest.txt"
+          $env:MLF_SHOT_DIR = "$PWD\dist\screenshots"
+          $p = Start-Process -FilePath "dist\MapleLaneFinds.exe" -ArgumentList "--selftest","--headless" -Wait -PassThru
+          if (Test-Path dist\selftest.txt) { Get-Content dist\selftest.txt }
+          if ($p.ExitCode -ne 0) { throw "Self-test failed (exit code $($p.ExitCode))" }
+
+      - name: Read version
+        id: ver
+        shell: pwsh
+        run: |
+          $v = python -c "from game.version import VERSION; print(VERSION)"
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MapleLaneFinds-${{ steps.ver.outputs.version }}-windows
+          path: |
+            dist/MapleLaneFinds-Setup-*.exe
+            dist/MapleLaneFinds.exe
+            dist/selftest.txt
+            dist/screenshots/*.png
+
+      - name: Create or refresh the draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = "${{ steps.ver.outputs.version }}"
+          $tag = "v$v"
+          $setup = "dist/MapleLaneFinds-Setup-$v.exe"
+          python tools/release_notes.py $v | Out-File -Encoding utf8 notes.md
+          $state = gh release list --limit 50 --json tagName,isDraft --jq ".[] | select(.tagName==\"$tag\") | .isDraft"
+          if ($state -eq "false") {
+            Write-Host "Release $tag is already published, so it is left alone. Bump the version in game/version.py for a new release."
+          } elseif ($state -eq "true") {
+            gh release upload $tag $setup --clobber
+            gh release edit $tag --notes-file notes.md --target ${{ github.sha }}
+          } else {
+            gh release create $tag $setup --draft --title "Maple Lane Finds $tag" --notes-file notes.md --target ${{ github.sha }}
+          }
+          exit 0
+
+  publish:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Point version.json at the newly published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          v="${tag#v}"
+          gh release download "$tag" --pattern "MapleLaneFinds-Setup-*.exe" --dir dl
+          python3 tools/prepare_release.py --installer "dl/MapleLaneFinds-Setup-$v.exe" --version "$v"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add version.json
+          git commit -m "Offer v$v to players (version.json)" || exit 0
+          git push

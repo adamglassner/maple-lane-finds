@@ -1,0 +1,3 @@
+# Only needed to re-draw the artwork with tools/make_art.py (the finished art is already in assets/)
+numpy>=1.26
+pillow>=10
