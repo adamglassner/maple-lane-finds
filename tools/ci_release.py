@@ -44,8 +44,23 @@ def main():
         gh("api", "-X", "DELETE", f"repos/{repo}/releases/{r['id']}")
         print("Removed duplicate draft", r["id"])
     gh("api", "-X", "PATCH", f"repos/{repo}/releases/{keep['id']}", "-F", "body=@notes.md", "-f", f"target_commitish={sha}")
-    gh("release", "upload", tag, setup, "--clobber", "--repo", repo)
+    for a in keep.get("assets", []):
+        gh("api", "-X", "DELETE", f"repos/{repo}/releases/assets/{a['id']}")
+    upload(repo, keep["id"], setup)
     print(f"Refreshed draft release {tag}")
+
+
+def upload(repo, release_id, path):
+    import urllib.request
+    name = os.path.basename(path)
+    with open(path, "rb") as f:
+        data = f.read()
+    req = urllib.request.Request(
+        f"https://uploads.github.com/repos/{repo}/releases/{release_id}/assets?name={name}", data=data, method="POST",
+        headers={"Authorization": f"Bearer {os.environ['GH_TOKEN']}", "Content-Type": "application/octet-stream",
+                 "Accept": "application/vnd.github+json"})
+    with urllib.request.urlopen(req, timeout=600) as r:
+        print("uploaded", name, r.status)
 
 
 if __name__ == "__main__":
