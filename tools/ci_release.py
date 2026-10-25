@@ -29,12 +29,14 @@ def main():
                 v, "\n".join("- " + b for b in (bullets(v) or ["Improvements and fixes."])), v)
     with open("notes.md", "w", encoding="utf-8") as f:
         f.write(notes)
-    rels = [r for r in json.loads(gh("api", f"repos/{repo}/releases?per_page=100")) if r.get("tag_name") == tag]
+    title = f"Maple Lane Finds {tag}"
+    rels = [r for r in json.loads(gh("api", f"repos/{repo}/releases?per_page=100"))
+            if r.get("tag_name") == tag or (r.get("draft") and r.get("name") == title)]
     if any(not r["draft"] for r in rels):
         print(f"Release {tag} is already published, so it is left alone. Bump VERSION in game/version.py for a new one.")
         return
     if not rels:
-        gh("release", "create", tag, setup, "--draft", "--title", f"Maple Lane Finds {tag}", "--notes-file", "notes.md",
+        gh("release", "create", tag, setup, "--draft", "--title", title, "--notes-file", "notes.md",
            "--target", sha)
         print(f"Created draft release {tag}")
         return
@@ -43,7 +45,8 @@ def main():
     for r in rels[1:]:
         gh("api", "-X", "DELETE", f"repos/{repo}/releases/{r['id']}")
         print("Removed duplicate draft", r["id"])
-    gh("api", "-X", "PATCH", f"repos/{repo}/releases/{keep['id']}", "-F", "body=@notes.md", "-f", f"target_commitish={sha}")
+    gh("api", "-X", "PATCH", f"repos/{repo}/releases/{keep['id']}", "-F", "body=@notes.md", "-f", f"target_commitish={sha}",
+       "-f", f"tag_name={tag}", "-f", f"name={title}")
     for a in keep.get("assets", []):
         gh("api", "-X", "DELETE", f"repos/{repo}/releases/assets/{a['id']}")
     upload(repo, keep["id"], setup)
