@@ -64,33 +64,9 @@ jobs:
             dist/screenshots/*.png
 
       - name: Create or refresh the draft release
-        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          $v = "${{ steps.ver.outputs.version }}"
-          $tag = "v$v"
-          $setup = "dist/MapleLaneFinds-Setup-$v.exe"
-          python tools/release_notes.py $v | Out-File -Encoding utf8 notes.md
-          $repo = "${{ github.repository }}"
-          $rels = @(gh api "repos/$repo/releases?per_page=100" --jq ".[] | select(.tag_name==\"$tag\") | \"\(.created_at) \(.id) \(.draft)\"" | Sort-Object -Descending)
-          if ($rels | Where-Object { $_ -like "* false" }) {
-            Write-Host "Release $tag is already published, so it is left alone. Bump the version in game/version.py for a new release."
-          } elseif ($rels.Count -eq 0) {
-            gh release create $tag $setup --draft --title "Maple Lane Finds $tag" --notes-file notes.md --target ${{ github.sha }}
-          } else {
-            $keep = ($rels[0] -split " ")[1]
-            foreach ($r in $rels | Select-Object -Skip 1) {  # remove accidental duplicate drafts
-              gh api -X DELETE "repos/$repo/releases/$(($r -split ' ')[1])"
-            }
-            foreach ($a in @(gh api "repos/$repo/releases/$keep/assets" --jq ".[].id")) {
-              gh api -X DELETE "repos/$repo/releases/assets/$a"
-            }
-            gh api -X PATCH "repos/$repo/releases/$keep" -F "body=@notes.md" -f "target_commitish=${{ github.sha }}" | Out-Null
-            gh api -X POST -H "Content-Type: application/octet-stream" --input $setup "https://uploads.github.com/repos/$repo/releases/$keep/assets?name=MapleLaneFinds-Setup-$v.exe" | Out-Null
-            Write-Host "Refreshed draft release $tag"
-          }
-          exit 0
+        run: python tools/ci_release.py ${{ steps.ver.outputs.version }}
 
   publish:
     if: github.event_name == 'release'
