@@ -1,0 +1,66 @@
+# One-time helper: publishes the game's FIRST release (the v1.0.0 draft) after the
+# Windows build has refreshed it, so Ironite Launcher has a release to install from.
+# Once any release is published this does nothing; later versions stay drafts until
+# you click "Publish" yourself, as before.
+name: Publish first release
+
+on:
+  workflow_run:
+    workflows: ["Build Windows game"]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: publish-first-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Publish the draft if nothing is published yet
+        id: pub
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          published=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" -q '[.[] | select(.draft == false)] | length')
+          if [ "$published" != "0" ]; then
+            echo "A release is already published - nothing to do."; echo "tag=" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          v=$(python3 -c "from game.version import VERSION; print(VERSION)")
+          tag="v$v"
+          id=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" -q "[.[] | select(.draft and .tag_name == \"$tag\")][0].id")
+          if [ -z "$id" ] || [ "$id" = "null" ]; then
+            echo "No draft for $tag yet - nothing to do."; echo "tag=" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          assets=$(gh api "repos/$GITHUB_REPOSITORY/releases/$id" -q '[.assets[] | select(.name | endswith(".exe"))] | length')
+          [ "$assets" != "0" ] || { echo "::error::Draft $tag has no installer attached"; exit 1; }
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$id" -F draft=false -f make_latest=true >/dev/null
+          echo "Published $tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      # The same as the "publish" job in build.yml (a release published by a workflow
+      # does not start other workflows, so it is done here).
+      - name: Point version.json at the newly published release
+        if: steps.pub.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ steps.pub.outputs.tag }}"
+          v="${tag#v}"
+          gh release download "$tag" --pattern "MapleLaneFinds-Setup-*.exe" --dir dl
+          python3 tools/prepare_release.py --installer "dl/MapleLaneFinds-Setup-$v.exe" --version "$v"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add version.json
+          git commit -m "Offer v$v to players (version.json)" || exit 0
+          git push
