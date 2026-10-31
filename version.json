@@ -1,6 +1,6 @@
 {
   "latest_version": "1.0.0",
-  "release_date": "2026-10-25",
+  "release_date": "2026-10-31",
   "changelog": [
     "First release of Maple Lane Finds!",
     "Five cozy autumn scenes to search, with ten hidden items each.",
@@ -8,5 +8,5 @@
     "Relaxed, Normal and Challenge modes, adjustable text size, music and sound volume."
   ],
   "windows_installer_url": "https://github.com/adamglassner/maple-lane-finds/releases/download/v1.0.0/MapleLaneFinds-Setup-1.0.0.exe",
-  "sha256": ""
+  "sha256": "05b5411b51560827bea30449461b09639d7eab779b07531e81e3e6240bcf55b2"
 }
